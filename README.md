@@ -250,3 +250,144 @@ const queryToObject2 = _.pipe(
   _.reduce(Object.assign)
 );
 ```
+
+### map 으로 안전하게 합성하기
+
+- map 을 활용하여 예상가능한 에러가 발생하지 않도록 합성
+
+```js
+// map 으로 합성하기
+const f = x => x + 10;
+const g = x => x - 5;
+
+// fg 함수에 파라미터가 들어오지 않을 경우 NaN 에러가 난다.
+const fg = x => f(g(x));
+
+// map 을 활용하여 안전하게 합성 할 수 있다.
+// 값이 안들어온 경우 아무 결과도 리턴하지 않는다.
+_.go(
+  [10],
+  _.map(fg),
+  _.each(log)
+)
+```
+
+### find 를 대신하여 filter 사용
+
+- if 문 같은 가드를 할 필요가 없다.
+
+```js
+// find 를 대신 filter 사용
+const findUser = _.find(user => user.user === 'mkp', users);
+if(findUser) log(findUser); // findUser 에 값이 있을 경우 실행
+
+// filter 를 활용하여 재합성
+const findUser2 = _.pipe(
+  _.filter(user => user.age > 10),
+  _.take(1),
+  _.each(log)
+)
+```
+
+## 객체를 이터러블 프로그래밍으로 다루기
+
+- 아직 평가가 완료되지 않은 이터레이터를 만듦으로써 최적화 여지를 남기고 값을 다룬다.
+- 지연성: 이처럼 값을 실제 사용할 때까지 계산을 늦춰서 불필요한 계산을 하지 않는다.
+- 동시성: 평가순서가 가로 -> 세로로 변경 / 하나의 함수에서 모든 값이 아닌 하나의 값만 평가하여 내보냄
+- 모나드: 함수함성
+
+### values, entries, keys
+
+- Object.values, Object.entries, Object.keys 를 지연성으로 구현
+
+```js
+// 1. values
+// Object.values 를 지연성으로 구현
+const lazyObjValues = function *(obj) {
+  for (const k in obj) {
+    yield k;
+  }
+}
+
+const lazyObjEntries = function *(obj) {
+  for (const k in obj) {
+    yield [k, obj[k]];
+  }
+}
+
+const lazyObjKey = function *(obj) {
+  for (const k in obj) {
+    yield k;
+  }
+}
+
+_.go(
+  users,
+  lazyObjValues, // 지연적으로 평가
+  _.map(a => a + ' Good!'),
+  _.take(2), // 지연적으로 평가하기 때문에 2개의 값만 평가한다.
+  _.each(log)
+)
+```
+
+### object
+
+- [['a', 1], ['b', 2], ['c', 3]] 형태를 {a: 1, b: 2, c: 3} 형태로 생성
+- 이터러블 프로토콜을 사용하는 모든 것에 적용가능 (map 에도 적용)
+
+```js
+// object
+// [['a', 1], ['b', 2], ['c', 3]] 형태를 {a: 1, b: 2, c: 3} 형태로 생성
+const object = (entries) => _.go(
+  entries,
+  _.map(([k, v]) => ({[k]: v})),
+  _.reduce(Object.assign)
+)
+
+// reduce 하나만으로 표현
+const object2 = (entries) => _.reduce((obj, [k, v]) => (obj[k] = v, obj), {}, entries);
+```
+
+### mapObject
+
+- 오브젝트를 순회하면서 값을 평가
+
+```js
+// mapObject 오브젝트를 순회하면 값 평가
+const mapObject = (f, obj) => _.go(
+  obj,
+  lazyObjEntries,
+  _.map(([k, v]) => [k, f(v)]),
+  object2
+)
+```
+
+### pick
+
+- 오브젝트에서 원하는 값만 추출해서 새로운 오브젝트 생성
+
+```js
+// pick, 오브젝트에서 원하는 값만 추출해서 새로운 오브젝트 생성
+const pick = (keys, obj) => _.go(
+  keys,
+  _.map((k) => [k, obj[k]]),
+  _.reject(([_, v]) => v === undefined),
+  object2
+)
+```
+
+### indexBy
+
+- 배열을 index 를 가진 object 로 변경
+- 한바퀴를 순회하고나면 데이터를 더욱 빠르게 key로 찾을 수 있다.
+
+```js
+// indexBy 된 것을 filter 하기
+const users2 = _.indexBy(user => user.id, users);
+const indexByFilter = (f, obj) =>  _.go(
+  obj,
+  lazyObjEntries,
+  _.filter(([_, a]) => f(a)),
+  object2,
+)
+```
