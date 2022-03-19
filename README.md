@@ -391,3 +391,154 @@ const indexByFilter = (f, obj) =>  _.go(
   object2,
 )
 ```
+
+## 객체지향과 함께 사용
+
+### Model, Collection 클래스 만들어서 이터러블 프로토콜 지원하기
+
+- 함수형 프로그래밍이 객체지향을 대체한다고 생각 X
+- 함수형 프로그래밍은 언어자체를 대체하는 것
+
+#### Collection Class
+- contructor: 배열을 받아서 this에 할당
+- at(): 배열의 index로 배열의 값을 READ
+- add(): 배열에 값을 추가 AND 생성자를 리턴
+- 이터레이터로 만드는 [Symbol.iterator]() 메소드 생성
+```js
+class Collection {
+    constructor(models = []) {
+      this._models = models;
+    }
+    at(idx) {
+      return this._models[idx];
+    }
+    add(model) {
+        this._models.push(model);
+        return this;
+    }
+        *[Symbol.iterator]() {
+        yield *this._models;
+    }
+}
+```
+
+#### Model Class
+- contructor: 객체를 받아서 this에 할당.
+- get(): 생성된 객체의 프로퍼티 값을 READ
+- set(): 생성된 객체의 값을 업데이트 AND 생성자를 리턴
+
+```js
+
+class Model {
+    constructor(attrs = {}) {
+      this._attrs = attrs;
+    }
+    get(k) {
+      return this._attrs[k];
+    }
+    set(k, v) {
+     this._attrs[k] = v;
+     return this;
+  }
+}
+```
+
+#### 기본적인 응용
+
+1. Collection Class 를 생성
+2. Collection 로 생성된 배열에 add() 메소드로 Model 클래스로 만든 객체를 추가
+3. Collection 클래스의 at 메소드로 원하는 순서의 Model 객체에 접근하고 Model 클래스의 get() 메소드로 값으로 READ
+
+```js
+const coll = new Collection();
+coll.add(new Model({id: 1, name: 'mkp'}));
+coll.add(new Model({id: 2, name: 'kan'}));
+coll.add(new Model({id: 3, name: 'ldk'}));
+
+// 1. 리스트안에 객체를 순회하면서 리스트의 name 을 대문자로 변경
+_.go(
+    coll,
+    _.map( model => model.set('name', model.get('name').toUpperCase())),
+    log
+)
+```
+
+#### Product, Products - 메서드를 함수형으로 구현하기
+
+- Products 클래스 Collection 클래스를 상속
+- Products 클래스에 totalPrice(), getPrice() 메소드를 함수형으로 개발
+- Product 클래스 Model 클래스를 상속
+
+```js
+class Products extends Collection {
+    totalPrice() {
+        return _.go(
+            this,
+            _.map(product => (product.get('price'))),
+            _.reduce((a, b) => a + b)
+        )
+    }
+    getPrice() {
+        return _.go(
+            this,
+            _.map(product => (product.get('price')))
+        )
+    }
+}
+class Product extends Model {}
+const products = new Products();
+products.add(new Product({id: 1, price: 2000}));
+products.add(new Product({id: 2, price: 3000}));
+products.add(new Product({id: 3, price: 5000}));
+console.log(products.getPrice());
+```
+
+
+## 시간을 이터러블로 다루기
+
+### range 와 take 의 재해석
+
+```js
+// 가로로 평가
+_.go(
+  _.range(10), // 0 ~ 9까지의 배열
+  _.take(3), // 앞에서부터 3개만 자르기
+  _.each(log)
+)
+
+// 세로로 평가
+// if. 오래걸리는 로직의 처리라면 하나씩 처리하는 것이 유리하다. (동시성)
+_.go(
+  L.range(10), // 0 ~ 9까지의 이터러블, 최대 10번
+  L.take(3), // 최대 3개의 값이 필요, 최대 3번의 일을 수행
+  L.each(log)
+)
+```
+
+### takeWhile, takeUntil
+
+- takeWhile: true 값들만 return
+- takeUntil: 처음 true 로 만난 값까지만 return
+
+### 자동차 경주 - 할일들을 이터러블(리스트)로 바라보기
+
+- 2초에 딜레이로 track 에서 car 를 하나씩 뽑아서, 탑승자가 4명인 차들만 출발
+
+```js
+const track = [
+  { car: ['철수', '영희', '철희', '영수'] },
+  { car: ['하든', '커리', '듀란트', '탐슨'] },
+  { car: ['폴', '어빙', '릴라드', '맥컬럼'] },
+  { car: ['스파이더맨', '아이언맨'] },
+  { car: [] },
+]
+
+_.go(
+  L.range(Infinity),
+  L.map(i => track[i]),
+  L.map(({car}) => car),
+  L.takeWhile(({length}) => (length >= 3)),
+  L.map(_.delay(1000)), // 임의적인 시간 딜레이 (데이터 처리....)
+  _.each(log)
+)
+```
