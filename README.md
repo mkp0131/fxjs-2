@@ -542,3 +542,90 @@ _.go(
   _.each(log)
 )
 ```
+
+### 결제 누락 처리 스케줄러
+
+- 결제도중 코드가 멈추는 예상치 못한 에러 상황으로 결제처리가 제대로 되지 않는 경우
+- cron 처럼 체크하여 주문확인서와 결제내역을 비교하여 주문확인서가 없는 결제는 결제를 취소
+
+```js
+// 1. 결제사 api
+const Impt = {
+  payments: {
+    1: [
+      { imp_id: 11, order_id: 1, amount: 15000 },
+      { imp_id: 12, order_id: 2, amount: 25000 },
+      { imp_id: 13, order_id: 3, amount: 10000 }
+    ],
+    2: [
+      { imp_id: 14, order_id: 4, amount: 25000 },
+      { imp_id: 15, order_id: 5, amount: 45000 },
+      { imp_id: 16, order_id: 6, amount: 15000 }
+    ],
+    3: [
+      { imp_id: 17, order_id: 7, amount: 20000 },
+      { imp_id: 18, order_id: 8, amount: 30000 }
+    ],
+    4: [],
+    5: [],
+    //...
+  },
+  getPayments: page => {
+    console.log(`http://..?page=${page}`);
+    return _.delay(1000 * 1, Impt.payments[page]);
+  },
+  cancelPayment: imp_id => Promise.resolve(`${imp_id}: 취소완료`)
+};
+
+// 가맹점 api
+const DB = {
+  getOrders: ids => _.delay(100, [
+    { id: 1 },
+    { id: 3 },
+    { id: 7 }
+  ])
+};
+
+const job = async () => {
+  // 결제사에서 모든 결제내역을 가져오기
+  const payments = await _.go(
+    L.range(1, Infinity),
+    L.map(i => Impt.getPayments(i)),
+    L.takeUntil(({length}) => length < 3),
+    _.flat,
+  )
+
+  // 가맹점에 결제된 내역
+  const orderIds = await _.go(
+    payments,
+    _.map(pay => pay.order_id),
+    DB.getOrders,
+    _.map(order => order.id),
+  )
+
+  // 실제결제와 결제내역이 다른 것들은 결제취소처리
+  _.go(
+    payments,
+    L.reject(pay => orderIds.includes(pay.order_id)),
+    L.map(pay => pay.imp_id),
+    L.map(Impt.cancelPayment),
+    _.each(log)
+  )
+}
+
+// 반복실행
+(function recur() {
+  // job().then(recur); // 끊기지 않는 요청으로 부하가 큼
+  // 5초에 한번만 실행
+  // if. 기존 요청이 5초보다 더 많이 걸린다고 한다면 job 이 끝나고 다시 요청하고, 5초 미만이면 5초에 한번만 실행
+  Promise.all([
+    _.delay(10000, undefined),
+    job()
+  ]).then(recur);
+})();
+```
+
+### 프론트엔드에서 함수형/이터러블/동시성 프로그래밍
+
+#### npm 에서 받은 패키지 index.html 에서 바로 사용하는 방법 연구중...
+

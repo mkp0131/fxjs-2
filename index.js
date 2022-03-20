@@ -1,10 +1,9 @@
-const FxJS = require("fxjs");
-const _ = require("fxjs/Strict");
-const L = require("fxjs/Lazy");
-const C = require("fxjs/Concurrency");
+import * as _ from "fxjs/Strict";
+import * as L from "fxjs/Lazy";
+import * as C from "fxjs/Concurrency";
 
 // 콘솔로그
-const {log} = require("fxjs");
+import { log } from "fxjs";
 
 const numList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -329,7 +328,7 @@ const products = new Products();
 products.add(new Product({id: 1, price: 2000}));
 products.add(new Product({id: 2, price: 3000}));
 products.add(new Product({id: 3, price: 5000}));
-console.log(products.getPrice())
+// console.log(products.getPrice())
 
 
 // ## 시간을 이터러블로 다루기
@@ -368,3 +367,100 @@ const track = [
 //   L.map(_.delay(1000)), // 임의적인 시간 딜레이 (데이터 처리....)
 //   _.each(log)
 // )
+
+// 결제 누락 처리 스케줄러
+// 1. 결제사 api
+const Impt = {
+  payments: {
+    1: [
+      { imp_id: 11, order_id: 1, amount: 15000 },
+      { imp_id: 12, order_id: 2, amount: 25000 },
+      { imp_id: 13, order_id: 3, amount: 10000 }
+    ],
+    2: [
+      { imp_id: 14, order_id: 4, amount: 25000 },
+      { imp_id: 15, order_id: 5, amount: 45000 },
+      { imp_id: 16, order_id: 6, amount: 15000 }
+    ],
+    3: [
+      { imp_id: 17, order_id: 7, amount: 20000 },
+      { imp_id: 18, order_id: 8, amount: 30000 }
+    ],
+    4: [],
+    5: [],
+    //...
+  },
+  getPayments: page => {
+    console.log(`http://..?page=${page}`);
+    return _.delay(1000 * 1, Impt.payments[page]);
+  },
+  cancelPayment: imp_id => Promise.resolve(`${imp_id}: 취소완료`)
+};
+
+// 가맹점 api
+const DB = {
+  getOrders: ids => _.delay(100, [
+    { id: 1 },
+    { id: 3 },
+    { id: 7 }
+  ])
+};
+
+const job = async () => {
+  // 결제사에서 모든 결제내역을 가져오기
+  const payments = await _.go(
+    L.range(1, Infinity),
+    L.map(i => Impt.getPayments(i)),
+    L.takeUntil(({length}) => length < 3),
+    _.flat,
+  )
+
+  // 가맹점에 결제된 내역
+  const orderIds = await _.go(
+    payments,
+    _.map(pay => pay.order_id),
+    DB.getOrders,
+    _.map(order => order.id),
+  )
+
+  // 실제결제와 결제내역이 다른 것들은 결제취소처리
+  _.go(
+    payments,
+    L.reject(pay => orderIds.includes(pay.order_id)),
+    L.map(pay => pay.imp_id),
+    L.map(Impt.cancelPayment),
+    _.each(log)
+  )
+}
+
+// 반복실행
+// (function recur() {
+//   // job().then(recur); // 끊기지 않는 요청으로 부하가 큼
+//   // 5초에 한번만 실행
+//   // if. 기존 요청이 5초보다 더 많이 걸린다고 한다면 job 이 끝나고 다시 요청하고, 5초 미만이면 5초에 한번만 실행
+//   Promise.all([
+//     _.delay(10000, undefined),
+//     job()
+//   ]).then(recur);
+// })();
+
+
+// 프론트엔드에서 함수형/이터러블/동시성 프로그래밍
+
+// json -> 이미지 element 만들기
+const images = {};
+images.fetch = () => new Promise(res => setTimeout(() => res(
+  [
+    { name: "HEART", url: "https://s3.marpple.co/files/m2/t3/colored_images/45_1115570_1162087.png" },
+    { name: "하트", url: "https://s3.marpple.co/f1/2019/1/1235206_1548918825999_78819.png" },
+    { name: "2", url: "https://s3.marpple.co/f1/2018/1/1054966_1516076769146_28397.png" },{ name: "6", url: "https://s3.marpple.co/f1/2018/1/1054966_1516076919028_64501.png"},{"name":"도넛","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918758054_55883.png"},{"name":"14","url":"https://s3.marpple.co/f1/2018/1/1054966_1516077199329_75954.png"},{"name":"15","url":"https://s3.marpple.co/f1/2018/1/1054966_1516077223857_39997.png"},{"name":"시계","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918485881_30787.png"},{"name":"돈","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918585512_77099.png"},{"name":"10","url":"https://s3.marpple.co/f1/2018/1/1054966_1516077029665_73411.png"},{"name":"7","url":"https://s3.marpple.co/f1/2018/1/1054966_1516076948567_98474.png"},{"name":"농구공","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918719546_22465.png"},{"name":"9","url":"https://s3.marpple.co/f1/2018/1/1054966_1516077004840_10995.png"},{"name":"선물","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918791224_48182.png"},{"name":"당구공","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918909204_46098.png"},{"name":"유령","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918927120_12321.png"},{"name":"원숭이","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919417134_80857.png"},{"name":"3","url":"https://s3.marpple.co/f1/2018/1/1054966_1516076802375_69966.png"},{"name":"16","url":"https://s3.marpple.co/f1/2018/1/1054966_1516077254829_36624.png"},{"name":"안경","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918944668_23881.png"},{"name":"폭죽","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919005789_67520.png"},{"name":"폭죽 2","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919027834_48946.png"},{"name":"박","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919062254_67900.png"},{"name":"톱니바퀴","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919302583_24439.png"},{"name":"11","url":"https://s3.marpple.co/f1/2018/1/1054966_1516077078772_79004.png"},{"name":"핫도그","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919086961_23322.png"},{"name":"고기","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919274214_33127.png"},{"name":"책","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919326628_13977.png"},{"name":"돋보기","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919363855_26766.png"},{"name":"집","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919395033_19373.png"},{"name":"사람","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918696715_44274.png"},{"name":"연필","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919437239_32501.png"},{"name":"파일","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919468582_23707.png"},{"name":"스피커","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919495804_49080.png"},{"name":"트로피 ","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918438617_69000.png"},{"name":"카메라","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919847041_33220.png"},{"name":"그래프","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918521301_43877.png"},{"name":"가방","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918642937_11925.png"},{"name":"입술","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919886042_10049.png"},{"name":"fire","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920036111_19302.png"},{"name":"TV","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920054808_42469.png"},{"name":"핸드폰","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920109727_43404.png"},{"name":"노트북","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920142776_26474.png"},{"name":"전구","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920181784_14964.png"},{"name":"장미","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920264149_78607.png"},{"name":"맥주","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920312701_18073.png"},{"name":"마이크","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920397855_39832.png"},{"name":"별","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920420823_49166.png"},{"name":"와이파이","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920438005_35247.png"},{"name":"헤드폰","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920468136_82088.png"},{"name":"peace","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920538719_19072.png"},{"name":"계산기","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920348341_40080.png"},{"name":"poo 2","url":"https://s3.marpple.co/f1/2019/1/1235206_1548924259247_12839.png"},{"name":"poo 3","url":"https://s3.marpple.co/f1/2019/1/1235206_1548924850867_72121.png"},{"name":"poo 4","url":"https://s3.marpple.co/f1/2019/1/1235206_1548925154648_40289.png"},{"name":"poo","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918988097_38121.png"},{"name":"모니터","url":"https://s3.marpple.co/f1/2016/7/1043023_1469769774483.png"},{"name":"talk","url":"https://s3.marpple.co/f1/2019/1/1235206_1548927111573_76831.png"},{"name":"keyboard","url":"https://s3.marpple.co/f1/2018/1/1054966_1516330864360_25866.png"},{"name":"daily 2","url":"https://s3.marpple.co/f1/2019/1/1235206_1548926169159_58295.png"},{"name":"daily","url":"https://s3.marpple.co/f1/2018/7/1199664_1531814945451_49451.png"},{"name":"편지","url":"https://s3.marpple.co/f1/2019/1/1235206_1548920087850_99421.png"},{"name":"sns 하단바 2","url":"https://s3.marpple.co/f1/2019/1/1235206_1548917218903_88079.png"},{"name":"sns 하단바","url":"https://s3.marpple.co/f1/2019/1/1235206_1548917192465_28365.png"},{"name":"sns 이모지 6","url":"https://s3.marpple.co/f1/2019/1/1235206_1548927313417_99007.png"},{"name":"sns 이모지","url":"https://s3.marpple.co/f1/2019/1/1235206_1548927219485_18861.png"},{"name":"13","url":"https://s3.marpple.co/f1/2018/1/1054966_1516077164559_59630.png"},{"name":"iphone","url":"https://s3.marpple.co/f1/2016/7/1043023_1469769886837.png"},{"name":"아이패드","url":"https://s3.marpple.co/f1/2016/7/1043023_1469769820297.png"},{"name":"컴퓨터","url":"https://s3.marpple.co/f1/2016/7/1043023_1469769802862.png"},{"name":"5","url":"https://s3.marpple.co/f1/2018/1/1054966_1516076888018_74741.png"},{"name":"poo 1","url":"https://s3.marpple.co/f1/2019/1/1235206_1548924230868_28487.png"},{"name":"Sns icon_똥 안경","url":"https://s3.marpple.co/f1/2017/2/1043404_1487211657799.png"},{"name":"Sns icon_똥 웃음","url":"https://s3.marpple.co/f1/2017/2/1043404_1487211686108.png"},{"name":"4","url":"https://s3.marpple.co/f1/2018/1/1054966_1516076850148_36610.png"},{"name":"Sns icon_똥 놀림","url":"https://s3.marpple.co/f1/2017/2/1043404_1487211670017.png"},{"name":"달력","url":"https://s3.marpple.co/f1/2019/1/1235206_1548919531014_35045.png"},{"name":"자물쇠","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918410738_59815.png"},{"name":"손 이모지","url":"https://s3.marpple.co/f1/2019/1/1235206_1548918353391_54897.png"},{"name":"Sns icon_손바닥","url":"https://s3.marpple.co/f1/2017/2/1043404_1487210472038.png"},{"name":"Sns icon_검지","url":"https://s3.marpple.co/f1/2017/2/1043404_1487210393226.png"},{"name":"Sns icon_롹","url":"https://s3.marpple.co/f1/2017/2/1043404_1487210522978.png"},{"name":"Sns icon_하이파이브","url":"https://s3.marpple.co/f1/2017/2/1043404_1487210538695.png"},{"name":"Sns icon_브이","url":"https://s3.marpple.co/f1/2017/2/1043404_1487210508758.png"},{"name":"Sns icon_중지","url":"https://s3.marpple.co/f1/2017/2/1043404_1487210428137.png"},{"name":"Sns icon_주먹","url":"https://s3.marpple.co/f1/2017/2/1043404_1487210372629.png"},{"name":"Sns icon_박수","url":"https://s3.marpple.co/f1/2017/2/1043404_1487210444994.png"},{"name":"Sns icon_따봉","url":"https://s3.marpple.co/f1/2017/2/1043404_1487210488684.png"},{"name":"손 이모지 2","url":"https://s3.marpple.co/f1/2019/1/1235206_1548921736267_35010.png"},{"name":"손 이모지 3","url":"https://s3.marpple.co/f1/2019/1/1235206_1548922150829_10878.png"}
+  ]), 3000))
+
+_.go(
+  images.fetch(),
+  _.map(({name, url}) => `<img src="${url}" alt="${name}">`),
+  _.join(''),
+  log
+)
+
+// ... 나머지 연구중
